@@ -1,69 +1,193 @@
-import Image from "next/image";
+"use client";
+
+import { Turnstile } from "@marsidev/react-turnstile";
+import { FormEvent, useState } from "react";
 
 export default function Home() {
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    company: "",
+    message: "",
+  });
+
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState("");
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [turnstileKey, setTurnstileKey] = useState(0);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setSuccess(false);
+    setError("");
+
+    const name = form.name.trim();
+    const email = form.email.trim();
+    const company = form.company.trim();
+    const message = form.message.trim();
+
+    if (name.length < 2) {
+      setError("El nombre debe tener al menos 2 caracteres.");
+      return;
+    }
+
+    if (message.length < 10) {
+      setError("El mensaje debe tener al menos 10 caracteres.");
+      return;
+    }
+
+    if (
+      name.length > 80 ||
+      email.length > 254 ||
+      company.length > 120 ||
+      message.length > 2000
+    ) {
+      setError("Uno de los campos supera el límite permitido.");
+      return;
+    }
+
+    if (!turnstileToken) {
+      setError("Completá la verificación de seguridad.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const response = await fetch("/api/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          company,
+          message,
+          turnstileToken,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.error || "No se pudo enviar la consulta.");
+        return;
+      }
+
+      setForm({
+        name: "",
+        email: "",
+        company: "",
+        message: "",
+      });
+
+      setTurnstileToken("");
+      setTurnstileKey((current) => current + 1);
+      setSuccess(true);
+    } catch (error) {
+      console.error("Lead submission failed:", error);
+      setError("No se pudo conectar con el servidor. Intentá nuevamente.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="min-h-screen bg-slate-950 text-white">
+      <div className="mx-auto flex min-h-screen max-w-xl items-center px-6 py-12">
+        <div className="w-full">
+          <p className="mb-2 text-sm font-semibold uppercase tracking-widest text-blue-400">
+            LeadPilot AI
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+
+          <h1 className="text-4xl font-bold">
+            Contanos qué necesita tu empresa
+          </h1>
+
+          <p className="mt-3 text-slate-400">
+            Dejanos tus datos y una descripción de lo que necesitás.
+          </p>
+
+          <form
+            onSubmit={handleSubmit}
+            className="mt-8 space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-6"
           >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
+            <input
+              required
+              type="text"
+              placeholder="Nombre"
+              value={form.name}
+              onChange={(e) =>
+                setForm({ ...form, name: e.target.value })
+              }
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-blue-500"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+            <input
+              required
+              type="email"
+              placeholder="Email"
+              value={form.email}
+              onChange={(e) =>
+                setForm({ ...form, email: e.target.value })
+              }
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-blue-500"
+            />
+
+            <input
+              type="text"
+              placeholder="Empresa"
+              value={form.company}
+              onChange={(e) =>
+                setForm({ ...form, company: e.target.value })
+              }
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-blue-500"
+            />
+
+            <textarea
+              required
+              rows={6}
+              placeholder="¿Qué necesitás?"
+              value={form.message}
+              onChange={(e) =>
+                setForm({ ...form, message: e.target.value })
+              }
+              className="w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 outline-none focus:border-blue-500"
+            />
+
+            <Turnstile
+              key={turnstileKey}
+              siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+              onSuccess={(token) => setTurnstileToken(token)}
+              onExpire={() => setTurnstileToken("")}
+              onError={() => setTurnstileToken("")}
+            />
+
+            <button
+              disabled={saving || !turnstileToken}
+              type="submit"
+              className="w-full rounded-xl bg-blue-600 px-4 py-3 font-semibold hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? "Enviando..." : "Enviar consulta"}
+            </button>
+
+            {success && (
+              <p className="text-sm text-green-400">
+                Consulta enviada correctamente.
+              </p>
+            )}
+
+            {error && (
+              <p className="text-sm text-red-400">
+                {error}
+              </p>
+            )}
+          </form>
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }

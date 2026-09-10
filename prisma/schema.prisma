@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+}
+
+enum LeadPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum AnalysisStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Lead {
+  id                 String         @id @default(uuid()) @db.Uuid
+  name               String
+  email              String
+  company            String?
+  message            String
+  status             LeadStatus     @default(NEW)
+  priority           LeadPriority   @default(MEDIUM)
+  category           String?
+  summary            String?
+  recommendation     String?
+  analysisStatus     AnalysisStatus @default(PENDING) @map("analysis_status")
+  analysisAttempts   Int            @default(0) @map("analysis_attempts")
+  analysisError      String?        @map("analysis_error")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+  notes LeadNote[]
+  activities LeadActivity[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([analysisStatus])
+  @@index([createdAt])
+  @@map("leads")
+}
+model LeadNote {
+  id        String   @id @default(uuid()) @db.Uuid
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  leadId String @map("lead_id") @db.Uuid
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@map("lead_notes")
+}enum ActivityType {
+  LEAD_CREATED
+  AI_COMPLETED
+  AI_FAILED
+  AI_RETRY
+  STATUS_CHANGED
+  NOTE_ADDED
+}
+
+model LeadActivity {
+  id        String       @id @default(uuid()) @db.Uuid
+  type      ActivityType
+  message   String
+  metadata  Json?
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  leadId String @map("lead_id") @db.Uuid
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([createdAt])
+  @@map("lead_activities")
+}
