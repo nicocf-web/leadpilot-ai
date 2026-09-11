@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { recordLeadActivity } from "@/lib/lead-activity";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
+  const isAdmin = await isAdminAuthenticated();
 
-  if (!data?.claims) {
+  if (!isAdmin) {
     return NextResponse.json(
       { error: "No autorizado." },
       { status: 401 },
@@ -32,61 +31,79 @@ export async function GET(request: Request) {
       createdAt: "desc",
     },
   });
+
   return NextResponse.json(notes);
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
+  try {
+    const isAdmin = await isAdminAuthenticated();
 
-  if (!data?.claims) {
-    return NextResponse.json(
-      { error: "No autorizado." },
-      { status: 401 },
-    );
-  }
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: "No autorizado." },
+        { status: 401 },
+      );
+    }
 
-  const body = await request.json();
+    const body = await request.json();
 
-  const leadId = body.leadId;
-  const content = body.content?.trim();
+    const leadId =
+      typeof body.leadId === "string"
+        ? body.leadId.trim()
+        : "";
 
-  if (!leadId || !content) {
-    return NextResponse.json(
-      { error: "Lead y contenido son obligatorios." },
-      { status: 400 },
-    );
-  }
+    const content =
+      typeof body.content === "string"
+        ? body.content.trim()
+        : "";
 
-  const lead = await prisma.lead.findUnique({
-    where: {
-      id: leadId,
-    },
-    select: {
-      id: true,
-    },
-  });
+    if (!leadId || !content || content.length > 2000) {
+      return NextResponse.json(
+        { error: "Datos inválidos." },
+        { status: 400 },
+      );
+    }
 
-  if (!lead) {
-    return NextResponse.json(
-      { error: "Lead no encontrado." },
-      { status: 404 },
-    );
-  }
+    const lead = await prisma.lead.findUnique({
+      where: {
+        id: leadId,
+      },
+      select: {
+        id: true,
+      },
+    });
 
-  const note = await prisma.leadNote.create({
-    data: {
+    if (!lead) {
+      return NextResponse.json(
+        { error: "Lead no encontrado." },
+        { status: 404 },
+      );
+    }
+
+    const note = await prisma.leadNote.create({
+      data: {
+        leadId,
+        content,
+      },
+    });
+
+    await recordLeadActivity({
       leadId,
-      content,
-    },
-  });
-await recordLeadActivity({
-  leadId,
-  type: "NOTE_ADDED",
-  message: "Se agregó una nota interna.",
-  metadata: {
-    noteId: note.id,
-  },
-});
-  return NextResponse.json(note, { status: 201 });
+      type: "NOTE_ADDED",
+      message: "Se agregó una nota interna.",
+      metadata: {
+        noteId: note.id,
+      },
+    });
+
+    return NextResponse.json(note, { status: 201 });
+  } catch (error) {
+    console.error("Lead note creation failed:", error);
+
+    return NextResponse.json(
+      { error: "No se pudo agregar la nota." },
+      { status: 500 },
+    );
+  }
 }

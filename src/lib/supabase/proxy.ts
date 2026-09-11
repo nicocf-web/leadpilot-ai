@@ -28,11 +28,26 @@ export async function updateSession(request: NextRequest) {
   );
 
   const { data } = await supabase.auth.getClaims();
-  const user = data?.claims;
 
-  if (!user && request.nextUrl.pathname.startsWith("/admin")) {
+  const userId =
+    typeof data?.claims?.sub === "string"
+      ? data.claims.sub
+      : null;
+
+  const adminUserId = process.env.ADMIN_USER_ID;
+
+  const isAdmin =
+    Boolean(adminUserId) &&
+    Boolean(userId) &&
+    userId === adminUserId;
+
+  if (
+    request.nextUrl.pathname.startsWith("/admin") &&
+    !isAdmin
+  ) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+
     return NextResponse.redirect(url);
   }
 

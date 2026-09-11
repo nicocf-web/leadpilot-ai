@@ -1,5 +1,5 @@
 import { after, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { processLeadAnalysis } from "@/lib/process-lead-analysis";
 import { prisma } from "@/lib/prisma";
 import { recordLeadActivity } from "@/lib/lead-activity";
@@ -7,11 +7,9 @@ import { leadRateLimit } from "@/lib/rate-limit";
 import { verifyTurnstile } from "@/lib/turnstile";
 
 export async function GET() {
-  const supabase = await createClient();
+  const isAdmin = await isAdminAuthenticated();
 
-  const { data } = await supabase.auth.getClaims();
-
-  if (!data?.claims) {
+  if (!isAdmin) {
     return NextResponse.json(
       { error: "No autorizado." },
       { status: 401 },
@@ -31,10 +29,17 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const name = body.name?.trim();
-    const email = body.email?.trim();
-    const company = body.company?.trim();
-    const message = body.message?.trim();
+    const name =
+      typeof body.name === "string" ? body.name.trim() : "";
+
+    const email =
+      typeof body.email === "string" ? body.email.trim() : "";
+
+    const company =
+      typeof body.company === "string" ? body.company.trim() : "";
+
+    const message =
+      typeof body.message === "string" ? body.message.trim() : "";
 
     if (
       !name ||
@@ -43,7 +48,7 @@ export async function POST(request: Request) {
       name.length < 2 ||
       name.length > 80 ||
       email.length > 254 ||
-      company?.length > 120 ||
+      company.length > 120 ||
       message.length < 10 ||
       message.length > 2000
     ) {
@@ -62,10 +67,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getClaims();
-
-    const isAdmin = Boolean(data?.claims);
+    const isAdmin = await isAdminAuthenticated();
 
     if (!isAdmin) {
       const forwardedFor = request.headers.get("x-forwarded-for");

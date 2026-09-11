@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
+import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getClaims();
+  const isAdmin = await isAdminAuthenticated();
 
-  if (!data?.claims) {
+  if (!isAdmin) {
     return NextResponse.json(
       { error: "No autorizado." },
       { status: 401 },

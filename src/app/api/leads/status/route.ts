@@ -1,16 +1,21 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { createClient } from "@/lib/supabase/server";
+import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { recordLeadActivity } from "@/lib/lead-activity";
+import { prisma } from "@/lib/prisma";
 
-const validStatuses = ["NEW", "CONTACTED", "QUALIFIED"] as const;
+const validStatuses = [
+  "NEW",
+  "CONTACTED",
+  "QUALIFIED",
+] as const;
+
+type LeadStatus = (typeof validStatuses)[number];
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getClaims();
+    const isAdmin = await isAdminAuthenticated();
 
-    if (!data?.claims) {
+    if (!isAdmin) {
       return NextResponse.json(
         { error: "No autorizado." },
         { status: 401 },
@@ -18,10 +23,21 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const id = body.id;
-    const status = body.status;
 
-    if (!id || !validStatuses.includes(status)) {
+    const id =
+      typeof body.id === "string"
+        ? body.id.trim()
+        : "";
+
+    const status =
+      typeof body.status === "string"
+        ? body.status
+        : "";
+
+    if (
+      !id ||
+      !validStatuses.includes(status as LeadStatus)
+    ) {
       return NextResponse.json(
         { error: "Datos inválidos." },
         { status: 400 },
@@ -41,7 +57,9 @@ export async function POST(request: Request) {
 
     const lead = await prisma.lead.update({
       where: { id },
-      data: { status },
+      data: {
+        status: status as LeadStatus,
+      },
     });
 
     if (currentLead.status !== status) {

@@ -73,10 +73,11 @@ export async function processLeadAnalysis(leadId: string) {
     } catch (error) {
       const errorMessage = getErrorMessage(error);
 
-      console.error(
-        `AI analysis attempt ${attempt + 1} failed for lead ${leadId}:`,
-        errorMessage,
-      );
+console.error("AI analysis attempt failed.", {
+  attempt: attempt + 1,
+  leadId,
+  error: errorMessage,
+});
 
       if (attempt < 2) {
         await wait(retryDelays[attempt]);

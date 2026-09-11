@@ -1,23 +1,26 @@
-import { createClient } from "@/lib/supabase/server";
 import { after, NextResponse } from "next/server";
+import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { recordLeadActivity } from "@/lib/lead-activity";
 import { processLeadAnalysis } from "@/lib/process-lead-analysis";
 import { prisma } from "@/lib/prisma";
-import { recordLeadActivity } from "@/lib/lead-activity";
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient();
+    const isAdmin = await isAdminAuthenticated();
 
-const { data } = await supabase.auth.getClaims();
+    if (!isAdmin) {
+      return NextResponse.json(
+        { error: "No autorizado." },
+        { status: 401 },
+      );
+    }
 
-if (!data?.claims) {
-  return NextResponse.json(
-    { error: "No autorizado." },
-    { status: 401 },
-  );
-}
     const body = await request.json();
-    const id = body.id;
+
+    const id =
+      typeof body.id === "string"
+        ? body.id.trim()
+        : "";
 
     if (!id) {
       return NextResponse.json(
@@ -28,6 +31,7 @@ if (!data?.claims) {
 
     const lead = await prisma.lead.findUnique({
       where: { id },
+      select: { id: true },
     });
 
     if (!lead) {
@@ -44,11 +48,13 @@ if (!data?.claims) {
         analysisError: null,
       },
     });
-await recordLeadActivity({
-  leadId: id,
-  type: "AI_RETRY",
-  message: "Se solicitó un reintento del análisis de IA.",
-});
+
+    await recordLeadActivity({
+      leadId: id,
+      type: "AI_RETRY",
+      message: "Se solicitó un reintento del análisis de IA.",
+    });
+
     after(async () => {
       await processLeadAnalysis(id);
     });
